@@ -1,0 +1,148 @@
+---
+title: "Appendix"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(dplyr)
+library(lubridate)
+library(forecast)
+library(TTR)
+library(ggplot2)
+library(tseries)
+library(gridExtra)
+
+covid <- read.csv("Bangladesh.csv")
+summary(covid)
+glimpse(covid)
+
+#Checking Missing Values
+colSums(is.na(covid))
+
+#Convert Date From Character
+covid$Date_reported <- as.Date(covid$Date_reported,"%d-%m-%y")
+
+#Checking Type and Class
+typeof(covid$Date_reported)
+class(covid$Date_reported)
+
+#Checking ranges of date variable
+range(covid$Date_reported)
+
+#create object ts 
+covid_ts <- ts(data = covid$New_cases,
+               start = min(covid$Date_reported),
+               frequency = 7) #weekly seasonality 
+
+#visualise object covid_ts
+covid_ts %>% autoplot()
+
+#Visualize New Cases
+plot(covid$New_cases, main = "Daily Cases of Covid-19 in Bangladesh")
+
+#Decompose TS 
+covid_dc <- decompose(covid_ts)
+covid_dc %>% autoplot()
+
+autoplot(covid_dc$x - covid_dc$seasonal)
+
+#Setting Testing and Training data
+test <- tail(covid_ts, 7) #get 7 last days 
+train <- head(covid_ts, length(covid_ts) - length(test)) #get the rest data
+
+train %>% autoplot()
+
+#ETS Model
+covid_ets <- ets(y = train, model = "ZZZ")
+covid_ets
+
+
+#Holt Model
+covid_holt <- HoltWinters(x = train, gamma = F)
+covid_holt
+
+#Testing Stationarity
+adf.test(train)
+
+#Plot of ACF & PACF
+tsdisplay(train)
+
+#Plot of ACF & PACF (Diff)
+tsdisplay(diff(train))
+
+#Testing ARIMA modeling
+covid_arima1 <- Arima(y = train, order = c(1,0,1))
+covid_arima2 <- Arima(y = train, order = c(1,0,2))
+covid_arima3 <- Arima(y = train, order = c(1,0,3))
+
+#Testing Auto ARIMA
+covid_arima_auto <- auto.arima(y = train)
+covid_arima_auto
+
+#Accuracy
+
+accuracy(covid_ets)
+accuracy(covid_arima1)
+accuracy(covid_arima2)
+accuracy(covid_arima3)
+accuracy(covid_arima_auto)
+ 
+#AIC
+covid_ets$aic
+covid_arima1$aic
+covid_arima2$aic
+covid_arima3$aic
+covid_arima_auto$aic
+
+#Forecasting
+covid_ets_f <- forecast(covid_ets, h = 7)
+covid_holt_f <- forecast(covid_holt, h = 7)
+covid_arima_f <- forecast(covid_arima1, h = 7)
+
+covid_ets_f
+covid_holt_f 
+covid_arima_f
+
+#Plot of forecasting
+
+a <- autoplot(covid_ets_f, series = "ETS", fcol = "red") +
+  autolayer(covid_ts, series = "Actual", color = "black") + 
+  labs(subtitle = "New Case of Covid in Bangladesh from April - May 2022",
+       y = "New Cases") +
+  theme_minimal()
+
+b <- autoplot(covid_holt_f, series = "HOLT", fcol = "green") +
+  autolayer(covid_ts, series = "Actual", color = "black") +
+  labs(subtitle = "New Case of  Covid in Bangladesh from April - May 2022",
+       y = "New Cases") +
+  theme_minimal()
+
+c <- autoplot(covid_arima_f, series = "ARIMA", fcol = "blue") +
+  autolayer(covid_ts, series = "Actual", color = "black") +
+  labs(subtitle = "New Case of  Covid in Bangladesh from April - May 2022",
+       y = "New Cases") +
+  theme_minimal()
+
+grid.arrange(a,b,c)
+
+#Accuracy of Forecasting
+accuracy(covid_ets_f, test)
+accuracy(covid_holt_f, test)
+accuracy(covid_arima_f, test)
+
+#Residuals
+shapiro.test(covid_ets_f$residuals) 
+shapiro.test(covid_holt_f$residuals)
+shapiro.test(covid_arima_f$residuals)
+
+#Box Plot
+Box.test(covid_ets_f$residuals, type = "Ljung-Box")
+Box.test(covid_holt_f$residuals, type = "Ljung-Box")
+Box.test(covid_arima_f$residuals, type = "Ljung-Box")
+```
+
+
+
